@@ -17,6 +17,8 @@ struct Args {
     filter_size: Option<Vec<usize>>,
     #[arg(long, default_value_t = 10)]
     rate: usize,
+    #[arg(long, default_value = "terminal")]
+    output: String,
 }
 
 #[tokio::main]
