@@ -1,0 +1,16 @@
+[package]
+name = "grimnir"
+version = "0.1.0"
+edition = "2021"
+description = "A Rust-based cybersecurity tool blending fuzzing (like ffuf) and HTTP probing (like httpx) with AI enhancements."
+authors = ["RowanDark <tehrowandark@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/rowandark/grimnir"  # Update with your repo URL
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }  # For CLI parsing
+reqwest = { version = "0.11", features = ["blocking"] }  # For HTTP requests
+tokio = { version = "1", features = ["full"] }  # For async concurrency
+serde = { version = "1.0", features = ["derive"] }  # For JSON handling
+serde_json = "1.0"  # For JSON output
+# rust-bert = "0.20"  # Uncomment for AI (NLP on responses); add later if needed
