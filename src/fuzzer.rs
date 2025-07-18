@@ -17,6 +17,9 @@ pub fn load_wordlist(path: &str) -> io::Result<Vec<String>> {
     let file = File::open(path)?;
     let lines = io::BufReader::new(file).lines();
     lines.collect()  // Collects into Vec<Result<String>>, but ? handles errors
+    let mut client_builder = Client::builder()
+    .user_agent("Grimnir/0.1")
+    .timeout(std::time::Duration::from_secs(5));
 }
 
 // Generates fuzzed URLs by replacing "FUZZ" in the base URL
@@ -138,6 +141,29 @@ pub async fn fuzz(
             let parts: Vec<&str> = output.splitn(2, ':').collect();
 let out_format = parts[0].to_lowercase();
 let out_path = if parts.len() > 1 { Some(parts[1]) } else { None };
+if let Some(proxy_str) = proxy_url {
+    let mut proxy = if proxy_str.starts_with("socks5://") {
+        reqwest::Proxy::all(&proxy_str)?  // For SOCKS5[3][5]
+    } else if proxy_str.starts_with("https://") {
+        reqwest::Proxy::https(&proxy_str)?  // HTTPS-specific[1][3]
+    } else {
+        reqwest::Proxy::http(&proxy_str)?  // Default to HTTP[1][2]
+    };
+
+    // Add basic auth if provided
+    if let Some(auth) = proxy_auth {
+        let parts: Vec<&str> = auth.splitn(2, ':').collect();
+        if parts.len() == 2 {
+            proxy = proxy.basic_auth(parts[0], parts[1]);  // Apply basic auth[5][10]
+        } else {
+            eprintln!("Invalid proxy_auth format '{}'. Skipping auth. Use 'user:pass'.", auth);
+        }
+    }
+
+    client_builder = client_builder.proxy(proxy);
+}
+
+let client = client_builder.build().expect("Failed to build reqwest client");
 
 // Generate content based on format
 let content = match out_format.as_str() {
