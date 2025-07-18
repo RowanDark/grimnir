@@ -23,6 +23,8 @@ struct Args {
     method: String,
     #[arg(long)]
     data: Option<String>,
+    #[arg(short = 'H', long, num_args = 1..)]
+    header: Vec<String>,
 }
 
 #[tokio::main]
@@ -51,5 +53,6 @@ async fn main() {
         args.output,
         args.method,
         args.data,
+        args.header,
     ).await;
 }
