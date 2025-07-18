@@ -9,11 +9,12 @@ repository = "https://github.com/rowandark/grimnir"
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }  # For CLI parsing
-reqwest = { version = "0.11", features = ["blocking"] }  # For HTTP requests
+reqwest = { version = "0.11", features = ["blocking", "socks"] }  # For HTTP requests with proxy support
 tokio = { version = "1", features = ["full"] }  # For async concurrency
 serde = { version = "1.0", features = ["derive"] }  # For JSON handling
 serde_json = "1.0"  # For JSON output
-regex = "1"
-rust-bert = "0.22"  # For NLP models (e.g., sentiment or entity extraction)
+regex = "1"  # For parsing and filtering
+rust-bert = "0.22"  # For NLP models (e.g., sentiment)
 tch = "0.14"  # Torch backend for rust-bert
-reqwest = { version = "0.11", features = ["blocking", "socks"] }  # Add "socks" for SOCKS5 support[3][5]
+lazy_static = "1.4"  # For static regexes in tech_fingerprinter
+chrono = "0.4"  # For timestamped file outputs
