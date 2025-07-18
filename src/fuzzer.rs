@@ -10,6 +10,7 @@ use crate::ai_engine::analyze;
 use crate::tech_fingerprinter::fingerprint;
 use serde::Serialize;
 use serde_json;
+use regex::Regex;
 
 // Loads words from a file into a Vec<String>
 pub fn load_wordlist(path: &str) -> io::Result<Vec<String>> {
@@ -114,6 +115,13 @@ pub async fn fuzz(
             });
             handles.push(handle);
         }
+            let mut compiled_regexes: Vec<Regex> = vec![];
+for pattern in filter_regex {
+    match Regex::new(&pattern) {
+        Ok(re) => compiled_regexes.push(re),
+        Err(e) => eprintln!("Invalid regex pattern '{}': {}. Skipping.", pattern, e),
+    }
+}
         // Now in the task loop, pass parsed_headers.clone() to probe_url
         // For each task:
         let parsed_headers_clone = parsed_headers.clone();
@@ -261,7 +269,54 @@ fn output_terminal(results: &[(ProbeResult, Option<(f32, String)>)]) {
         println!("---");
     }
 }
+fn should_filter(
+    result: &ProbeResult, 
+    filter_status: &Option<Vec<u16>>, 
+    filter_size: &Option<Vec<usize>>,
+    filter_regexes: &[Regex],
+) -> bool {
+    // Existing status and size checks
+    if let Some(statuses) = filter_status {
+        if statuses.contains(&result.status) {
+            return true;
+        }
+    }
+    if let Some(sizes) = filter_size {
+        let body_size = result.title.as_ref().map_or(0, |t| t.len());  // Placeholder
+        if sizes.iter().any(|&s| body_size < s) {
+            return true;
+        }
+    }
 
+    // New: Regex checks (filter out if any pattern matches)
+    for re in filter_regexes {
+        // Check URL
+        if re.is_match(&result.url) {
+            return true;
+        }
+        // Check title if present
+        if let Some(title) = &result.title {
+            if re.is_match(title) {
+                return true;
+            }
+        }
+        // Check body snippet if present
+        if let Some(body) = &result.body_snippet {
+            if re.is_match(body) {
+                return true;
+            }
+        }
+        // Check specific headers (e.g., Server)
+        if let Some(server) = result.headers.get("server") {
+            if re.is_match(server) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+    
 // JSON output (with AI fields included)
 #[derive(Serialize)]
 struct JsonResult {
