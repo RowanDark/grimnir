@@ -70,6 +70,17 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
+    println!(r#"
+
+  _______ .______       __  .___  ___. .__   __.  __  .______      
+ /  _____||   _  \     |  | |   \/   | |  \ |  | |  | |   _  \     
+|  |  __  |  |_)  |    |  | |  \  /  | |   \|  | |  | |  |_)  |    
+|  | |_ | |      /     |  | |  |\/|  | |  . `  | |  | |      /     
+|  |__| | |  |\  \----.|  | |  |  |  | |  |\   | |  | |  |\  \----.
+ \______| | _| `._____||__| |__|  |__| |__| \__| |__| | _| `._____|
+                                                                   
+    By: RowanDark v0.1.0 2025
+    "#);
     println!("Grimnir is ready to probe and fuzz!");
     println!("Target URL: {}", args.url);
     println!("Wordlist: {}", args.wordlist);
