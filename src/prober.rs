@@ -13,15 +13,24 @@ pub struct ProbeResult {
 }
 
 // Async function to probe a URL and parse response
-pub async fn probe_url(url: String, client: &Client, method: &str, data: Option<String>) -> Result<ProbeResult, ReqwestError> {
+pub async fn probe_url(
+    url: String,
+    client: &Client,
+    method: &str,
+    data: Option<String>,
+    custom_headers: Vec<(String, String)>,  // New param
+    Result<ProbeResult, ReqwestError> {
     let mut request = match method {
         "GET" => client.get(&url),
         "POST" => client.post(&url),
         "PUT" => client.put(&url),
         "HEAD" => client.head(&url),
-        _ => client.get(&url),  // Fallback
+        _ => client.get(&url),
     };
 
+    for (key, value) in custom_headers {
+        request = request.header(key, value);
+    }
     // Attach data for methods that support bodies (POST, PUT)
     if matches!(method, "POST" | "PUT") {
         if let Some(body) = data {
