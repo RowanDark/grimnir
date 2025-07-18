@@ -4,6 +4,7 @@ use std::path::Path;
 use tokio::task;
 use reqwest::Client;
 use crate::prober::{probe_url, ProbeResult};
+use crate::ai_engine::analyze;
 
 // Loads words from a file into a Vec<String>
 pub fn load_wordlist(path: &str) -> io::Result<Vec<String>> {
@@ -27,7 +28,7 @@ async fn probe_url(url: String) -> String {
 }
 
 // Main fuzz function: generates URLs, spawns async tasks for probing
-pub async fn fuzz(base_url: String, wordlist_path: String, concurrency: usize) {
+pub async fn fuzz(base_url: String, wordlist_path: String, concurrency: usize, ai_enabled: bool) {
     let words = match load_wordlist(&wordlist_path) {
         Ok(w) => w,
         Err(e) => {
@@ -53,9 +54,16 @@ pub async fn fuzz(base_url: String, wordlist_path: String, concurrency: usize) {
             let client_clone = client.clone();  
             let handle = task::spawn(async move {
                 match probe_url(url_clone, &client_clone).await {
-                    Ok(result) => print_result(&result),  
-                    Err(e) => eprintln!("Probe error for {}: {}", url_clone, e),
-                }
+                    Ok(result) => {
+                        if ai_enabled {
+                            let (score, insights) = analyze(&result);
+                            print_result(&result, Some((score, insights)));
+                        } else {
+                            print_result(&result, None);
+            }
+        }
+        Err(e) => eprintln!("Probe error for {}: {}", url_clone, e),
+    }
             });
             handles.push(handle);
         }
@@ -71,7 +79,7 @@ pub async fn fuzz(base_url: String, wordlist_path: String, concurrency: usize) {
     println!("Fuzzing complete!");
 }
 
-fn print_result(result: &ProbeResult) {
+fn print_result(result: &ProbeResult, ai: Option<(f32, String)>) {
     println!("URL: {}", result.url);
     println!("Status: {}", result.status);
     if let Some(title) = &result.title {
@@ -80,5 +88,9 @@ fn print_result(result: &ProbeResult) {
     if let Some(server) = result.headers.get("server") {
         println!("Server: {}", server);
     }
-    println!("---");  // Separator for readability
+    if let Some((score, insights)) = ai {
+        println!("AI Score: {:.2}", score);
+        println!("Insights: {}", insights);
+    }
+    println!("---");
 }
