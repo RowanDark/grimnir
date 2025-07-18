@@ -7,14 +7,16 @@ struct Args {
     /// Base URL with FUZZ placeholder (e.g., http://example.com/FUZZ)
     #[arg(short = 'u', long)]
     url: String,
-
-    /// Path to wordlist file
     #[arg(short = 'w', long)]
     wordlist: String,
-
-    /// Enable AI enhancements (e.g., response analysis)
     #[arg(long)]
     ai: bool,
+    #[arg(long, value_delimiter = ',', num_args = 1..)]
+    filter_status: Option<Vec<u16>>,
+    #[arg(long, value_delimiter = ',', num_args = 1..)]
+    filter_size: Option<Vec<usize>>,
+    #[arg(long, default_value_t = 10)]
+    rate: usize,
 }
 
 #[tokio::main]
@@ -32,5 +34,13 @@ async fn main() {
         println!("AI mode not yet implemented—running basic fuzz for now!");
         // TODO: Integrate AI analysis here
     }
-    fuzzer::fuzz(args.url, args.wordlist, concurrency, args.ai).await;
+    fuzzer::fuzz(
+        args.url,
+        args.wordlist,
+        10,  // Concurrency (hardcoded for now)
+        args.ai,
+        args.filter_status,
+        args.filter_size,
+        args.rate,
+    ).await;
 }
