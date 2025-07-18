@@ -28,7 +28,15 @@ async fn probe_url(url: String) -> String {
 }
 
 // Main fuzz function: generates URLs, spawns async tasks for probing
-pub async fn fuzz(base_url: String, wordlist_path: String, concurrency: usize, ai_enabled: bool) {
+pub async fn fuzz(
+    base_url: String,
+    wordlist_path: String,
+    concurrency: usize,
+    ai_enabled: bool,
+    filter_status: Option<Vec<u16>>,
+    filter_size: Option<Vec<usize>>,
+    rate: usize,
+) {
     let words = match load_wordlist(&wordlist_path) {
         Ok(w) => w,
         Err(e) => {
@@ -44,8 +52,9 @@ pub async fn fuzz(base_url: String, wordlist_path: String, concurrency: usize, a
         .timeout(std::time::Duration::from_secs(5))  // Basic timeout
         .build()
         .expect("Failed to build reqwest client");
-    
+    let semaphore = Arc::new(Semaphore::new(rate));
     let mut handles = vec![];
+    
 
     // Chunk the URLs to control concurrency 
  for chunk in urls.chunks(concurrency) {
@@ -53,8 +62,11 @@ pub async fn fuzz(base_url: String, wordlist_path: String, concurrency: usize, a
             let url_clone = url.clone();
             let client_clone = client.clone();  
             let handle = task::spawn(async move {
+                let _permit = sem_clone.acquire().await.unwrap();
                 match probe_url(url_clone, &client_clone).await {
                     Ok(result) => {
+                        if should_filter(&result, &filter_status, &filter_size) {
+                            return; {
                         if ai_enabled {
                             let (score, insights) = analyze(&result);
                             print_result(&result, Some((score, insights)));
@@ -93,4 +105,18 @@ fn print_result(result: &ProbeResult, ai: Option<(f32, String)>) {
         println!("Insights: {}", insights);
     }
     println!("---");
+}
+fn should_filter(result: &ProbeResult, filter_status: &Option<Vec<u16>>, filter_size: &Option<Vec<usize>>) -> bool {
+    if let Some(statuses) = filter_status {
+        if statuses.contains(&result.status) {
+            return true;
+        }
+    }
+    if let Some(sizes) = filter_size {
+        let body_size = result.title.as_ref().map_or(0, |t| t.len());  // Placeholder; expand to real size later
+        if sizes.iter().any(|&s| body_size < s) {  // Example: filter if smaller than any value
+            return true;
+        }
+    }
+    false
 }
