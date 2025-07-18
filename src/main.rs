@@ -33,6 +33,8 @@ struct Args {
     proxy: Option<String>,
     #[arg(long)]
     proxy_auth: Option<String>,
+    #[arg(long, num_args = 1..)]
+    filter_regex: Vec<String>,
 }
 
 #[tokio::main]
@@ -65,5 +67,6 @@ async fn main() {
         args.tech,
         args.proxy,
         args.proxy_auth
+        args.filter_regex,
     ).await;
 }
