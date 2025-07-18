@@ -27,6 +27,8 @@ struct Args {
     header: Vec<String>,
     #[arg(long)]
     tech: bool,
+    #[arg(long, default_value = "terminal")]
+    output: String,
 }
 
 #[tokio::main]
