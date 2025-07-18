@@ -35,6 +35,7 @@ pub async fn fuzz(
     output: String,  // Assuming this is not Option anymore—adjust based on your main.rs
     method: String,
     data: Option<String>,
+    raw_headers: Vec<String>,
 ) {
     let words = match load_wordlist(&wordlist_path) {
         Ok(w) => w,
@@ -58,13 +59,22 @@ pub async fn fuzz(
     let method_upper = method.to_uppercase();
     if !["GET", "POST", "HEAD", "PUT"].contains(&method_upper.as_str()) {
         eprintln!("Unsupported method: {}. Falling back to GET.", method);
-        let method_upper = "GET".to_string();
-    }
+        let method_upper = "GET".to_string(); }
     let mut targets = vec![];
     for word in &words {
         let fuzzed_url = base_url.replace("FUZZ", word);
         let fuzzed_data = data.as_ref().map(|d| d.replace("FUZZ", word));
-        targets.push((fuzzed_url, fuzzed_data));
+        targets.push((fuzzed_url, fuzzed_data)); }
+    let mut parsed_headers: Vec<(String, String)> = vec![];
+    for h in raw_headers {
+        let parts: Vec<&str> = h.splitn(2, ':').collect();
+        if parts.len() == 2 {
+            let key = parts[0].trim().to_string();
+            let value = parts[1].trim().to_string();
+            parsed_headers.push((key, value));
+        } else {
+            eprintln!("Invalid header format '{}'. Skipping. Use 'Key: Value'.", h);
+        }
     }
 
     let mut handles = vec![];
@@ -100,6 +110,12 @@ pub async fn fuzz(
             });
             handles.push(handle);
         }
+        // Now in the task loop, pass parsed_headers.clone() to probe_url
+        // For each task:
+        let parsed_headers_clone = parsed_headers.clone();
+        let handle = task::spawn(async move {
+            // ... acquire permit ...
+            match probe_url(url_clone, &client_clone, &method_clone, opt_data_clone, parsed_headers_clone).await {
 
         // Wait for this batch to finish and collect results
         for handle in handles.drain(..) {
