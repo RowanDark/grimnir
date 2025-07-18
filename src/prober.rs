@@ -13,8 +13,27 @@ pub struct ProbeResult {
 }
 
 // Async function to probe a URL and parse response
-pub async fn probe_url(url: String, client: &Client) -> Result<ProbeResult, ReqwestError> {
-    let res = client.get(&url).send().await?;
+pub async fn probe_url(url: String, client: &Client, method: &str, data: Option<String>) -> Result<ProbeResult, ReqwestError> {
+    let mut request = match method {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
+        "HEAD" => client.head(&url),
+        _ => client.get(&url),  // Fallback
+    };
+
+    // Attach data for POST
+    if method == "POST" {
+        if let Some(body) = data {
+            let content_type = if body.starts_with('{') || body.starts_with('[') {
+                "application/json"
+            } else {
+                "text/plain"
+            };
+            request = request.header("Content-Type", content_type).body(body);
+        }
+    }
+
+    let res = request.send().await?;
 
     let status = res.status().as_u16();
 
@@ -27,7 +46,7 @@ pub async fn probe_url(url: String, client: &Client) -> Result<ProbeResult, Reqw
     }
 
     // Extract body and parse title (simple regex—assumes HTML)
-    let body = res.text().await?;
+    let body = if method != "HEAD" { res.text().await? } else { String::new() };
     let title_re = Regex::new(r"<title>(.*?)</title>").unwrap();
     let title = title_re.captures(&body).and_then(|caps| caps.get(1).map(|m| m.as_str().to_string()));
 
