@@ -3,7 +3,7 @@ use regex::Regex;
 use std::collections::HashMap;
 
 // Custom struct for probe results—easy to expand and serialize
-#[derive(Debug)]
+#[derive(Debug: Serialize)]
 pub struct ProbeResult {
     pub url: String,
     pub status: u16,
