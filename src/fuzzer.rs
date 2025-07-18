@@ -2,6 +2,8 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 use tokio::task;
+use reqwest::Client;
+use crate::prober::{probe_url, ProbeResult};
 
 // Loads words from a file into a Vec<String>
 pub fn load_wordlist(path: &str) -> io::Result<Vec<String>> {
@@ -35,20 +37,30 @@ pub async fn fuzz(base_url: String, wordlist_path: String, concurrency: usize) {
     };
 
     let urls = generate_urls(&base_url, &words);
+
+     let client = Client::builder()
+        .user_agent("Grimnir/0.1")  // Set a user agent to be polite
+        .timeout(std::time::Duration::from_secs(5))  // Basic timeout
+        .build()
+        .expect("Failed to build reqwest client");
+    
     let mut handles = vec![];
 
-    // Chunk the URLs to control concurrency (e.g., 10 at a time)
-    for chunk in urls.chunks(concurrency) {
+    // Chunk the URLs to control concurrency 
+ for chunk in urls.chunks(concurrency) {
         for url in chunk {
             let url_clone = url.clone();
+            let client_clone = client.clone();  
             let handle = task::spawn(async move {
-                let result = probe_url(url_clone).await;
-                println!("{}", result);  // Output the result
+                match probe_url(url_clone, &client_clone).await {
+                    Ok(result) => print_result(&result),  
+                    Err(e) => eprintln!("Probe error for {}: {}", url_clone, e),
+                }
             });
             handles.push(handle);
         }
 
-        // Wait for this batch to finish before next (simple rate limiting)
+        // Wait for this batch to finish
         for handle in handles.drain(..) {
             if let Err(e) = handle.await {
                 eprintln!("Task error: {}", e);
@@ -57,4 +69,16 @@ pub async fn fuzz(base_url: String, wordlist_path: String, concurrency: usize) {
     }
 
     println!("Fuzzing complete!");
+}
+
+fn print_result(result: &ProbeResult) {
+    println!("URL: {}", result.url);
+    println!("Status: {}", result.status);
+    if let Some(title) = &result.title {
+        println!("Title: {}", title);
+    }
+    if let Some(server) = result.headers.get("server") {
+        println!("Server: {}", server);
+    }
+    println!("---");  // Separator for readability
 }
