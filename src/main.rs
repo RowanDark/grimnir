@@ -1,4 +1,5 @@
 use clap::Parser;
+mod fuzzer;  // Import our new module
 
 #[derive(Parser, Debug)]
 #[command(name = "grimnir", version = "0.1.0", about = "A fused ffuf + httpx tool with AI smarts")]
@@ -25,7 +26,11 @@ async fn main() {
     println!("Wordlist: {}", args.wordlist);
     println!("AI enabled: {}", args.ai);
 
-    // TODO: Load wordlist, generate URLs, probe them asynchronously
-    // TODO: If AI is enabled, analyze responses with heuristics/ML
-    // For now, this is a placeholder—let's build it out step by step!
+    // Call the fuzzer
+    let concurrency = 10;  // Adjustable later via CLI arg
+    if args.ai {
+        println!("AI mode not yet implemented—running basic fuzz for now!");
+        // TODO: Integrate AI analysis here
+    }
+    fuzzer::fuzz(args.url, args.wordlist, concurrency).await;
 }
