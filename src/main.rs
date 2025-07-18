@@ -4,7 +4,7 @@ mod fuzzer;  // Import our new module
 #[derive(Parser, Debug)]
 #[command(name = "grimnir", version = "0.1.0", about = "A fused ffuf + httpx tool with AI smarts")]
 struct Args {
-    /// Base URL with FUZZ placeholder (e.g., http://example.com/FUZZ)
+    // Existing args...
     #[arg(short = 'u', long)]
     url: String,
     #[arg(short = 'w', long)]
@@ -19,6 +19,10 @@ struct Args {
     rate: usize,
     #[arg(long, default_value = "terminal")]
     output: String,
+    #[arg(long, default_value = "GET")]
+    method: String,
+    #[arg(long)]
+    data: Option<String>,
 }
 
 #[tokio::main]
@@ -44,5 +48,8 @@ async fn main() {
         args.filter_status,
         args.filter_size,
         args.rate,
+        args.output,
+        args.method,
+        args.data,
     ).await;
 }
