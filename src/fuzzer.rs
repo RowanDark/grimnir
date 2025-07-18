@@ -1,10 +1,13 @@
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 use tokio::task;
 use reqwest::Client;
 use crate::prober::{probe_url, ProbeResult};
 use crate::ai_engine::analyze;
+use serde::Serialize;
 use serde_json;
 
 // Loads words from a file into a Vec<String>
@@ -20,14 +23,6 @@ pub fn generate_urls(base_url: &str, words: &[String]) -> Vec<String> {
     words.iter().map(|word| base_url.replace("FUZZ", word)).collect()
 }
 
-// Placeholder probe function—simulates an HTTP request and returns a simple result
-// (We'll replace this with real reqwest calls in prober.rs later)
-async fn probe_url(url: String) -> String {
-    // Simulate a request (in reality, use reqwest here)
-    // For now, just echo the URL with a fake status
-    format!("Probed {} - Status: 200 (placeholder)", url)
-}
-
 // Main fuzz function: generates URLs, spawns async tasks for probing
 pub async fn fuzz(
     base_url: String,
@@ -37,6 +32,7 @@ pub async fn fuzz(
     filter_status: Option<Vec<u16>>,
     filter_size: Option<Vec<usize>>,
     rate: usize,
+    output: Option<String>,
 ) {
     let words = match load_wordlist(&wordlist_path) {
         Ok(w) => w,
@@ -48,65 +44,77 @@ pub async fn fuzz(
 
     let urls = generate_urls(&base_url, &words);
 
-     let client = Client::builder()
+    // Create a shared reqwest Client for efficient requests
+    let client = Client::builder()
         .user_agent("Grimnir/0.1")  // Set a user agent to be polite
         .timeout(std::time::Duration::from_secs(5))  // Basic timeout
         .build()
         .expect("Failed to build reqwest client");
-    let semaphore = Arc::new(Semaphore::new(rate));
-    let mut handles = vec![];
-    
 
-    // Chunk the URLs to control concurrency 
- for chunk in urls.chunks(concurrency) {
+    // Rate limiting: Semaphore limits to 'rate' concurrent requests
+    let semaphore = Arc::new(Semaphore::new(rate));
+
+    let mut handles = vec![];
+    let mut results: Vec<(ProbeResult, Option<(f32, String)>)> = vec![];  // Collect results with optional AI
+
+    // Chunk the URLs to control concurrency (batches of 'concurrency' size)
+    for chunk in urls.chunks(concurrency) {
         for url in chunk {
             let url_clone = url.clone();
-            let client_clone = client.clone();  
+            let client_clone = client.clone();
+            let sem_clone = semaphore.clone();  // Clone semaphore for this task
             let handle = task::spawn(async move {
+                // Acquire permit for rate limiting
                 let _permit = sem_clone.acquire().await.unwrap();
                 match probe_url(url_clone, &client_clone).await {
                     Ok(result) => {
+                        // Apply filters
                         if should_filter(&result, &filter_status, &filter_size) {
-                            return; {
+                            return;
+                        }
+                        // Apply AI if enabled
                         if ai_enabled {
                             let (score, insights) = analyze(&result);
-                            print_result(&result, Some((score, insights)));
+                            (result, Some((score, insights)))
                         } else {
-                            print_result(&result, None);
-            }
-        }
-        Err(e) => eprintln!("Probe error for {}: {}", url_clone, e),
-    }
+                            (result, None)
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Probe error for {}: {}", url_clone, e);
+                        return;
+                    }
+                }
             });
             handles.push(handle);
         }
 
-        // Wait for this batch to finish
+        // Wait for this batch to finish and collect results
         for handle in handles.drain(..) {
-            if let Err(e) = handle.await {
+            if let Ok(Some(res)) = handle.await {  // Handle potential task results
+                results.push(res);
+            } else if let Err(e) = handle.await {
                 eprintln!("Task error: {}", e);
             }
         }
     }
 
+    // Output results based on format
+    if let Some(out_format) = output {
+        if out_format == "json" || out_format == "pretty-json" {
+            output_json(&results, out_format == "pretty-json");
+        } else {
+            eprintln!("Unknown output format: {}. Falling back to terminal.", out_format);
+            output_terminal(&results);
+        }
+    } else {
+        output_terminal(&results);
+    }
+
     println!("Fuzzing complete!");
 }
 
-fn print_result(result: &ProbeResult, ai: Option<(f32, String)>) {
-    println!("URL: {}", result.url);
-    println!("Status: {}", result.status);
-    if let Some(title) = &result.title {
-        println!("Title: {}", title);
-    }
-    if let Some(server) = result.headers.get("server") {
-        println!("Server: {}", server);
-    }
-    if let Some((score, insights)) = ai {
-        println!("AI Score: {:.2}", score);
-        println!("Insights: {}", insights);
-    }
-    println!("---");
-}
+// Helper to check if result should be filtered
 fn should_filter(result: &ProbeResult, filter_status: &Option<Vec<u16>>, filter_size: &Option<Vec<usize>>) -> bool {
     if let Some(statuses) = filter_status {
         if statuses.contains(&result.status) {
@@ -114,10 +122,60 @@ fn should_filter(result: &ProbeResult, filter_status: &Option<Vec<u16>>, filter_
         }
     }
     if let Some(sizes) = filter_size {
-        let body_size = result.title.as_ref().map_or(0, |t| t.len());  // Placeholder; expand to real size later
+        let body_size = result.title.as_ref().map_or(0, |t| t.len());  // Placeholder; expand to real size later (e.g., add body_len to ProbeResult)
         if sizes.iter().any(|&s| body_size < s) {  // Example: filter if smaller than any value
             return true;
         }
     }
     false
+}
+
+// Terminal output (pretty print)
+fn output_terminal(results: &[(ProbeResult, Option<(f32, String)>)]) {
+    for (result, ai) in results {
+        println!("URL: {}", result.url);
+        println!("Status: {}", result.status);
+        if let Some(title) = &result.title {
+            println!("Title: {}", title);
+        }
+        if let Some(server) = result.headers.get("server") {
+            println!("Server: {}", server);
+        }
+        if let Some((score, insights)) = ai {
+            println!("AI Score: {:.2}", score);
+            println!("Insights: {}", insights);
+        }
+        println!("---");
+    }
+}
+
+// JSON output (with AI fields included)
+#[derive(Serialize)]
+struct JsonResult {
+    url: String,
+    status: u16,
+    headers: std::collections::HashMap<String, String>,
+    title: Option<String>,
+    ai_score: Option<f32>,
+    ai_insights: Option<String>,
+}
+
+fn output_json(results: &[(ProbeResult, Option<(f32, String)>)], pretty: bool) {
+    let json_results: Vec<JsonResult> = results.iter().map(|(res, ai)| {
+        JsonResult {
+            url: res.url.clone(),
+            status: res.status,
+            headers: res.headers.clone(),
+            title: res.title.clone(),
+            ai_score: ai.map(|(score, _)| score),
+            ai_insights: ai.map(|(_, insights)| insights.clone()),
+        }
+    }).collect();
+
+    let json = if pretty {
+        serde_json::to_string_pretty(&json_results).unwrap()
+    } else {
+        serde_json::to_string(&json_results).unwrap()
+    };
+    println!("{}", json);
 }
