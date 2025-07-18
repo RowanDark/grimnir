@@ -32,7 +32,9 @@ pub async fn fuzz(
     filter_status: Option<Vec<u16>>,
     filter_size: Option<Vec<usize>>,
     rate: usize,
-    output: Option<String>,
+    output: String,  // Assuming this is not Option anymore—adjust based on your main.rs
+    method: String,
+    data: Option<String>,
 ) {
     let words = match load_wordlist(&wordlist_path) {
         Ok(w) => w,
@@ -53,36 +55,46 @@ pub async fn fuzz(
 
     // Rate limiting: Semaphore limits to 'rate' concurrent requests
     let semaphore = Arc::new(Semaphore::new(rate));
+    let method_upper = method.to_uppercase();
+    if !["GET", "POST", "HEAD"].contains(&method_upper.as_str()) {
+        eprintln!("Unsupported method: {}. Falling back to GET.", method);
+        method_upper = "GET".to_string();
+    }
+    let mut targets = vec![];
+    for word in &words {
+        let fuzzed_url = base_url.replace("FUZZ", word);
+        let fuzzed_data = data.as_ref().map(|d| d.replace("FUZZ", word));
+        targets.push((fuzzed_url, fuzzed_data));
+    }
 
     let mut handles = vec![];
     let mut results: Vec<(ProbeResult, Option<(f32, String)>)> = vec![];  // Collect results with optional AI
 
     // Chunk the URLs to control concurrency (batches of 'concurrency' size)
-    for chunk in urls.chunks(concurrency) {
-        for url in chunk {
+    for chunk in targets.chunks(concurrency) {
+        for (url, opt_data) in chunk {
             let url_clone = url.clone();
+            let opt_data_clone = opt_data.clone();
             let client_clone = client.clone();
-            let sem_clone = semaphore.clone();  // Clone semaphore for this task
+            let sem_clone = semaphore.clone();
+            let method_clone = method_upper.clone();
             let handle = task::spawn(async move {
-                // Acquire permit for rate limiting
                 let _permit = sem_clone.acquire().await.unwrap();
-                match probe_url(url_clone, &client_clone).await {
+                match probe_url(url_clone, &client_clone, &method_clone, opt_data_clone).await {
                     Ok(result) => {
-                        // Apply filters
                         if should_filter(&result, &filter_status, &filter_size) {
-                            return;
+                            return None;
                         }
-                        // Apply AI if enabled
                         if ai_enabled {
                             let (score, insights) = analyze(&result);
-                            (result, Some((score, insights)))
+                            Some((result, Some((score, insights))))
                         } else {
-                            (result, None)
+                            Some((result, None))
                         }
                     }
                     Err(e) => {
                         eprintln!("Probe error for {}: {}", url_clone, e);
-                        return;
+                        None
                     }
                 }
             });
