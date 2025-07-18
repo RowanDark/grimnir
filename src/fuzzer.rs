@@ -5,6 +5,7 @@ use tokio::task;
 use reqwest::Client;
 use crate::prober::{probe_url, ProbeResult};
 use crate::ai_engine::analyze;
+use serde_json;
 
 // Loads words from a file into a Vec<String>
 pub fn load_wordlist(path: &str) -> io::Result<Vec<String>> {
