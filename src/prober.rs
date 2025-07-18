@@ -8,8 +8,8 @@ pub struct ProbeResult {
     pub url: String,
     pub status: u16,
     pub headers: HashMap<String, String>,
-    pub title: Option<String>,  // Extracted from <title> tag
-    // TODO: Add more like body length, tech detection
+    pub title: Option<String>,
+    pub body_snippet: Option<String>,
 }
 
 // Async function to probe a URL and parse response
@@ -59,6 +59,7 @@ pub async fn probe_url(
 
     // Extract body and parse title (simple regex—assumes HTML)
     let body = if method != "HEAD" { res.text().await? } else { String::new() };
+    let body_snippet = if !body.is_empty() { Some(body.chars().take(1024).collect()) } else { None };
     let title_re = Regex::new(r"<title>(.*?)</title>").unwrap();
     let title = title_re.captures(&body).and_then(|caps| caps.get(1).map(|m| m.as_str().to_string()));
 
@@ -67,5 +68,6 @@ pub async fn probe_url(
         status,
         headers,
         title,
+        body_snippet,
     })
 }
