@@ -32,5 +32,5 @@ async fn main() {
         println!("AI mode not yet implemented—running basic fuzz for now!");
         // TODO: Integrate AI analysis here
     }
-    fuzzer::fuzz(args.url, args.wordlist, concurrency).await;
+    fuzzer::fuzz(args.url, args.wordlist, concurrency, args.ai).await;
 }
