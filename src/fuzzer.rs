@@ -56,9 +56,9 @@ pub async fn fuzz(
     // Rate limiting: Semaphore limits to 'rate' concurrent requests
     let semaphore = Arc::new(Semaphore::new(rate));
     let method_upper = method.to_uppercase();
-    if !["GET", "POST", "HEAD"].contains(&method_upper.as_str()) {
+    if !["GET", "POST", "HEAD", "PUT"].contains(&method_upper.as_str()) {
         eprintln!("Unsupported method: {}. Falling back to GET.", method);
-        method_upper = "GET".to_string();
+        let method_upper = "GET".to_string();
     }
     let mut targets = vec![];
     for word in &words {
