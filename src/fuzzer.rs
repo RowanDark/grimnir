@@ -7,6 +7,7 @@ use tokio::task;
 use reqwest::Client;
 use crate::prober::{probe_url, ProbeResult};
 use crate::ai_engine::analyze;
+use crate::tech_fingerprinter::fingerprint;
 use serde::Serialize;
 use serde_json;
 
@@ -140,6 +141,7 @@ pub async fn fuzz(
     }
 
     println!("Fuzzing complete!");
+        let tech = if tech_enabled { Some(fingerprint(&result)) } else { None };
 }
 
 // Helper to check if result should be filtered
@@ -163,6 +165,9 @@ fn output_terminal(results: &[(ProbeResult, Option<(f32, String)>)]) {
     for (result, ai) in results {
         println!("URL: {}", result.url);
         println!("Status: {}", result.status);
+        if let Some(t) = tech {
+            println!("Detected Tech: {}", t.join(", "));
+        }
         if let Some(title) = &result.title {
             println!("Title: {}", title);
         }
