@@ -135,6 +135,60 @@ pub async fn fuzz(
         } else {
             eprintln!("Unknown output format: {}. Falling back to terminal.", out_format);
             output_terminal(&results);
+            let parts: Vec<&str> = output.splitn(2, ':').collect();
+let out_format = parts[0].to_lowercase();
+let out_path = if parts.len() > 1 { Some(parts[1]) } else { None };
+
+// Generate content based on format
+let content = match out_format.as_str() {
+    "json" => Some(serde_json::to_string(&json_results).unwrap()),  // Use your JsonResult vec
+    "pretty-json" => Some(serde_json::to_string_pretty(&json_results).unwrap()),
+    "terminal" => {
+        output_terminal(&results);  // Existing function
+        None  // No file content
+    }
+    _ => {
+        eprintln!("Unknown format '{}'. Using terminal.", out_format);
+        output_terminal(&results);
+        None
+    }
+};
+
+// If path provided or "file" implied, write to file
+if let Some(path) = out_path {
+    use std::fs::File;
+    use std::io::Write;
+    let mut file = match File::create(path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("Failed to create file '{}': {}", path, e);
+            return;
+        }
+    };
+    if let Some(c) = content {
+        if let Err(e) = file.write_all(c.as_bytes()) {
+            eprintln!("Failed to write to '{}': {}", path, e);
+        } else {
+            println!("Output saved to '{}'", path);
+        }
+    } else {
+        // For plain text, generate and write
+        let mut text = String::new();
+        for (result, ai, tech) in &results {  // Adapt to your results structure
+            text.push_str(&format!("URL: {}\nStatus: {}\n", result.url, result.status));
+            // ... add title, server, ai, tech ...
+            text.push_str("---\n");
+        }
+        if let Err(e) = file.write_all(text.as_bytes()) {
+            eprintln!("Failed to write to '{}': {}", path, e);
+        } else {
+            println!("Output saved to '{}'", path);
+        }
+    }
+} else if content.is_some() {
+    // If no path but format is json/pretty-json, print to stdout
+    println!("{}", content.unwrap());
+}
         }
     } else {
         output_terminal(&results);
