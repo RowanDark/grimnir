@@ -5,7 +5,7 @@ edition = "2021"
 description = "A Rust-based cybersecurity tool blending fuzzing (like ffuf) and HTTP probing (like httpx) with AI enhancements."
 authors = ["RowanDark <tehrowandark@gmail.com>"]
 license = "MIT"
-repository = "https://github.com/rowandark/grimnir"  # Update with your repo URL
+repository = "https://github.com/rowandark/grimnir"
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }  # For CLI parsing
@@ -14,4 +14,5 @@ tokio = { version = "1", features = ["full"] }  # For async concurrency
 serde = { version = "1.0", features = ["derive"] }  # For JSON handling
 serde_json = "1.0"  # For JSON output
 regex = "1"
-# rust-bert = "0.20"  # Uncomment for AI (NLP on responses); add later if needed
+rust-bert = "0.22"  # For NLP models (e.g., sentiment or entity extraction)
+tch = "0.14"  # Torch backend for rust-bert
