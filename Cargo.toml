@@ -16,3 +16,4 @@ serde_json = "1.0"  # For JSON output
 regex = "1"
 rust-bert = "0.22"  # For NLP models (e.g., sentiment or entity extraction)
 tch = "0.14"  # Torch backend for rust-bert
+reqwest = { version = "0.11", features = ["blocking", "socks"] }  # Add "socks" for SOCKS5 support[3][5]
