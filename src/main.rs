@@ -29,6 +29,10 @@ struct Args {
     tech: bool,
     #[arg(long, default_value = "terminal")]
     output: String,
+    #[arg(long)]
+    proxy: Option<String>,
+    #[arg(long)]
+    proxy_auth: Option<String>,
 }
 
 #[tokio::main]
@@ -59,5 +63,7 @@ async fn main() {
         args.data,
         args.header,
         args.tech,
+        args.proxy,
+        args.proxy_auth
     ).await;
 }
