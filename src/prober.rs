@@ -17,15 +17,18 @@ pub async fn probe_url(url: String, client: &Client, method: &str, data: Option<
     let mut request = match method {
         "GET" => client.get(&url),
         "POST" => client.post(&url),
+        "PUT" => client.put(&url),
         "HEAD" => client.head(&url),
         _ => client.get(&url),  // Fallback
     };
 
-    // Attach data for POST
-    if method == "POST" {
+    // Attach data for methods that support bodies (POST, PUT)
+    if matches!(method, "POST" | "PUT") {
         if let Some(body) = data {
             let content_type = if body.starts_with('{') || body.starts_with('[') {
                 "application/json"
+            } else if body.contains('=') {
+                "application/x-www-form-urlencoded"
             } else {
                 "text/plain"
             };
