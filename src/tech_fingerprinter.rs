@@ -1,5 +1,5 @@
 use crate::prober::ProbeResult;
-use lazy_static::lazy_static;  // For static regexes (add to Cargo.toml if missing)
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashSet;
 
@@ -22,6 +22,8 @@ pub fn fingerprint(result: &ProbeResult) -> Vec<String> {
             detected.insert("PHP".to_string());
         } else if powered_by.contains("Express") {
             detected.insert("Node.js/Express".to_string());
+        } else if powered_by.contains("Django") {
+            detected.insert("Django".to_string());
         }
     }
     if result.headers.contains_key("cf-ray") || result.headers.contains_key("cf-cache-status") {
@@ -29,6 +31,19 @@ pub fn fingerprint(result: &ProbeResult) -> Vec<String> {
     }
     if result.headers.contains_key("x-amz-id-2") || result.headers.contains_key("x-amz-request-id") {
         detected.insert("AWS".to_string());
+    }
+    if result.headers.contains_key("x-shopify-stage") {
+        detected.insert("Shopify".to_string());
+    }
+
+    // Cookie-based detection (e.g., for Laravel, Django)
+    if let Some(set_cookie) = result.headers.get("set-cookie") {
+        if set_cookie.contains("laravel_session") {
+            detected.insert("Laravel".to_string());
+        }
+        if set_cookie.contains("csrftoken") {
+            detected.insert("Django".to_string());
+        }
     }
 
     // Title-based detection
@@ -45,20 +60,26 @@ pub fn fingerprint(result: &ProbeResult) -> Vec<String> {
         }
     }
 
-    // Body snippet-based detection (enhancement for more context)
+    // Body snippet-based detection
     if let Some(body) = &result.body_snippet {
         lazy_static! {
-            static ref REACT_RE: Regex = Regex::new(r"(?i)react-dom").unwrap();  // Common React script pattern
+            static ref REACT_RE: Regex = Regex::new(r"(?i)react-dom").unwrap();
+            static ref JOOMLA_RE: Regex = Regex::new(r"(?i)joomla|com_content").unwrap();
             static ref WP_BODY_RE: Regex = Regex::new(r"(?i)wp-admin|wp-login").unwrap();
         }
         if REACT_RE.is_match(body) {
             detected.insert("React".to_string());
+        }
+        if JOOMLA_RE.is_match(body) {
+            detected.insert("Joomla".to_string());
         }
         if WP_BODY_RE.is_match(body) {
             detected.insert("WordPress".to_string());
         }
     }
 
-    // TODO: Add more (e.g., cookies for Laravel, body regex for Joomla, or external signature loading)
-    detected.into_iter().collect()  // Return as sorted Vec for consistency
+    // Return as sorted Vec for consistent output
+    let mut sorted: Vec<String> = detected.into_iter().collect();
+    sorted.sort();
+    sorted
 }
